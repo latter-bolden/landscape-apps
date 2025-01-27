@@ -1,3 +1,5 @@
+import * as domain from '../domain';
+
 const MUSIC_ENDPOINT = 'https://api.ninaprotocol.com/v1';
 
 interface MusicSearchResult {
@@ -18,8 +20,11 @@ interface ReleaseFile {
   type: string;
 }
 
-interface ReleaseMetadata {
+export interface ReleaseMetadata {
   name: string;
+  creator?: string;
+  title?: string;
+  thumbnail?: string;
   description: string;
   image: string;
   properties?: {
@@ -143,6 +148,66 @@ export async function searchMusic(query: string) {
   }
 }
 
+export async function searchMusicInternetArchive(
+  query: string,
+  pageNum?: number
+): Promise<domain.NormalizedRelease[]> {
+  console.log(`searchMusicInternetArchive`, query);
+  const params = getInternetArchiveSearchParams(query, pageNum);
+  const endpoint = `https://archive.org/services/search/beta/page_production/?${params.toString()}`;
+
+  try {
+    const response = await fetch(endpoint);
+    if (!response.ok) {
+      throw new Error(`Bad response from Internet Archive: ${response.status}`);
+    }
+
+    const results = await response.json();
+    const hits = results?.response?.body?.hits?.hits ?? [];
+    if (!hits.length) {
+      return [];
+    }
+
+    const validResults = [];
+    for (const hit of hits) {
+      const content = hit.fields ?? {};
+      const releaseId = `intArc:${content.identifier}`;
+      try {
+        const release = {
+          id: releaseId,
+          creator: content.creator,
+          title: content.title,
+          description: content.description,
+          image: `https://archive.org/services/img/${content.identifier}`,
+          thumbnail: `https://archive.org/services/img/${content.identifier}`,
+          tracks: [],
+        };
+        if (release.title && release.creator) {
+          validResults.push(release);
+        }
+      } catch (e) {
+        // fallthrough
+      }
+    }
+
+    return validResults;
+  } catch (e) {
+    // todo
+    return [];
+  }
+}
+
+function getInternetArchiveSearchParams(query: string, pageNum: number = 1) {
+  const baseQuery = `${query} AND mediatype:(audio) AND NOT access-restricted-item:(true)`;
+  const params = new URLSearchParams({
+    user_query: baseQuery,
+    hits_per_page: '100',
+    page: pageNum.toString(),
+  });
+
+  return params;
+}
+
 export async function getReleaseTracks(releaseId: string) {
   console.log(`getReleaseTracks`, releaseId);
   try {
@@ -182,4 +247,113 @@ async function musicFetch(path: string, query: any) {
     },
   });
   return response.json();
+}
+
+export async function getReleaseMetadata(
+  releaseId: string
+): Promise<domain.NormalizedRelease> {
+  const [source, vendoredId] = releaseId.split(':');
+  switch (source) {
+    case 'intArc':
+      return getInternetArchiveRelease(vendoredId);
+    //
+    case 'nina':
+    default:
+      // unimplemented
+      throw new Error('Invalid release source');
+  }
+}
+
+interface InternetArchiveTrack {
+  name: string; // 03 PROUD MARY.mp3
+  length: string; // 03:10
+  md5Hash: string; // 0cbda7104192fe39b333f7a365a0ba16
+}
+
+async function getInternetArchiveRelease(
+  vendoredId: string
+): Promise<domain.NormalizedRelease> {
+  console.log(`getInternetArchiveRelease`, vendoredId);
+  try {
+    const response = await fetch(`https://archive.org/metadata/${vendoredId}`);
+    if (!response.ok) {
+      throw new Error(`Bad response from Internet Archive: ${response.status}`);
+    }
+
+    const metadata = await response.json();
+    console.log(`Internet Archive metadata`, metadata);
+    const domain = metadata.d1 ?? null;
+    const dir = metadata.dir ?? null;
+
+    if (!domain || !dir) {
+      throw new Error('Invalid Internet Archive metadata');
+    }
+
+    const assetLocation = `https://${domain}${dir}`;
+
+    const files = metadata.files ?? [];
+    const tracks = files.filter((fi: any) =>
+      (fi.name || '').endsWith('.mp3')
+    ) as InternetArchiveTrack[];
+
+    // const orderedTracks = tracks.sort((a, b) => a.name.localeCompare(b.name));
+
+    const title = metadata.metadata.title ?? 'Untitled Release';
+    const creator = metadata.metadata.creator ?? 'Unknown Artist';
+
+    const images = files.filter((fi: any) => fi.name.endsWith('.jpg'));
+    const image = images.length > 0 ? `${assetLocation}/${images[0].name}` : '';
+    const thumbnail =
+      images.find((fi: any) => fi.name.includes('thumb')) ?? image;
+
+    const release: domain.NormalizedRelease = {
+      id: `intArc:${vendoredId}`,
+      creator,
+      title,
+      description: metadata.description ?? '',
+      image,
+      thumbnail,
+      tracks: tracks.map((track, i) => ({
+        id: `intArc:${vendoredId}:track:${i}`,
+        releaseId: `intArc:${vendoredId}`,
+        title: track.name.replace('.mp3', ''),
+        artist: creator,
+        albumTitle: title,
+        trackNumber: i + 1,
+        totalTracks: tracks.length,
+        duration: Math.round(Number(track.length)),
+        audioUrl: `${assetLocation}/${track.name.split(' ').join('%20')}`,
+        coverArt: image,
+        releaseDate: metadata.date ?? '',
+        isAlbumTrack: true,
+      })),
+    };
+
+    // export interface NormalizedTrack {
+    //   id: string; // Format: "release:{releaseKey}:track:{trackNumber}"
+    //   releaseId: string; // Original release public key
+    //   title: string; // Track title
+    //   artist: string; // Artist name from release
+    //   albumTitle: string; // Full release/album title
+    //   trackNumber: number; // Position in album/release
+    //   totalTracks: number; // Total tracks in release
+    //   duration: number; // Duration in seconds
+    //   audioUrl: string; // Direct audio file URL
+    //   coverArt: string; // Album/release cover art
+    //   releaseDate: string; // Original release date
+    //   isAlbumTrack: boolean; // Whether this is part of a multi-track release
+    // }
+
+    console.log(`obtained release`, release);
+    return release;
+  } catch (e) {
+    console.error(e);
+    throw new Error('Failed to fetch Internet Archive release');
+  }
+}
+
+function timeToSeconds(timeString: string) {
+  console.log(`timeToSeconds`, timeString);
+  const [minutes, seconds] = timeString.split(':').map(Number);
+  return minutes * 60 + seconds;
 }

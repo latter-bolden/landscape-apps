@@ -13,6 +13,16 @@ export interface NormalizedTrack {
   isAlbumTrack: boolean; // Whether this is part of a multi-track release
 }
 
+export interface NormalizedRelease {
+  id: string;
+  title: string;
+  creator?: string;
+  image: string;
+  thumbnail?: string;
+  description?: string;
+  tracks: NormalizedTrack[];
+}
+
 export interface AudioPlayer {
   playTrack: (track: NormalizedTrack) => Promise<void>;
   pause: () => Promise<void>;

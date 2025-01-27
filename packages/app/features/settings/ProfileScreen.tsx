@@ -32,7 +32,11 @@ export default function ProfileScreen(props: Props) {
   }, [navigationRef]);
 
   const onBlockedUsersPressed = useCallback(() => {
-    navigationRef.current.navigate('BlockedUsers');
+    // navigationRef.current.navigate('BlockedUsers');
+    // navigationRef.current.navigate('AudioRelease', {
+    //   releaseId: 'intArc:the-lemon-of-pink',
+    // });
+    navigationRef.current.navigate('SearchArchive');
   }, [navigationRef]);
 
   const onManageAccountPressed = useCallback(() => {

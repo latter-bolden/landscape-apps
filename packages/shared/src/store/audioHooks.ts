@@ -9,6 +9,52 @@ interface Release {
   // other release properties
 }
 
+export function useArchiveSearch(initialQuery: string = '') {
+  const [query, setQuery] = useState(initialQuery);
+  const [releases, setReleases] = useState<domain.NormalizedRelease[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Search function that doesn't depend on loadReleases
+  const performSearch = async (searchQuery: string) => {
+    console.log('performing search', searchQuery);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const searchResults = await api.searchMusicInternetArchive(searchQuery);
+      setReleases(searchResults);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Search failed'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const debouncedSearch = useMemo(
+    () => _.debounce(performSearch, 300, { trailing: true }),
+    [] // No dependencies needed
+  );
+
+  useEffect(() => {
+    // console.log('query effect running', query);
+    if (query && query.length > 3) {
+      debouncedSearch(query);
+    } else {
+      setReleases([]);
+    }
+
+    return () => debouncedSearch.cancel();
+  }, [query]);
+
+  return {
+    query,
+    setQuery,
+    releases,
+    isLoading,
+    error,
+  };
+}
+
 export function useMusicSearch(initialQuery: string = '') {
   const [query, setQuery] = useState(initialQuery);
   const [releases, setReleases] = useState<Release[]>([]);

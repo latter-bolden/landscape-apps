@@ -64,6 +64,8 @@ export type RootStackParamList = {
     channelId: string;
   };
   AddProfileAudio: undefined;
+  AudioRelease: { releaseId: string };
+  SearchArchive: undefined;
   EditProfileLinks: undefined;
   ChannelTemplate: {
     channelId: string;

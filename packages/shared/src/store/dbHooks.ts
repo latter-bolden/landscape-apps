@@ -551,3 +551,10 @@ export function useFakePinnedPosts() {
     queryFn: () => db.getFakePinnedPosts(),
   });
 }
+
+export function useReleaseMetadata(releaseId: string) {
+  return useQuery({
+    queryKey: ['release', releaseId],
+    queryFn: () => api.getReleaseMetadata(releaseId),
+  });
+}

@@ -9,6 +9,7 @@ import { ChannelTemplateScreen } from '../features/channels/ChannelTemplateScree
 import { AddContactsScreen } from '../features/contacts/AddContactsScreen';
 import { AddProfileAudioScreen } from '../features/settings/AddProfileAudioScreen';
 import { AppInfoScreen } from '../features/settings/AppInfoScreen';
+import { AudioReleaseScreen } from '../features/settings/AudioReleaseScreen';
 import { BlockedUsersScreen } from '../features/settings/BlockedUsersScreen';
 import { EditProfileLinksScreen } from '../features/settings/EditProfileLinksScreen';
 import { EditProfileScreen } from '../features/settings/EditProfileScreen';
@@ -16,6 +17,7 @@ import { FeatureFlagScreen } from '../features/settings/FeatureFlagScreen';
 import { ManageAccountScreen } from '../features/settings/ManageAccountScreen';
 import ProfileScreen from '../features/settings/ProfileScreen';
 import { PushNotificationSettingsScreen } from '../features/settings/PushNotificationSettingsScreen';
+import { SearchArchiveScreen } from '../features/settings/SearchArchive';
 import { ThemeScreen } from '../features/settings/ThemeScreen';
 import { UserBugReportScreen } from '../features/settings/UserBugReportScreen';
 import { ActivityScreen } from '../features/top/ActivityScreen';
@@ -115,6 +117,8 @@ export function RootStack() {
       <Root.Screen name="ChannelMembers" component={ChannelMembersScreen} />
       <Root.Screen name="ChannelMeta" component={ChannelMetaScreen} />
       <Root.Screen name="AddProfileAudio" component={AddProfileAudioScreen} />
+      <Root.Screen name="SearchArchive" component={SearchArchiveScreen} />
+      <Root.Screen name="AudioRelease" component={AudioReleaseScreen} />
       <Root.Screen name="EditProfileLinks" component={EditProfileLinksScreen} />
       <Root.Screen name="ChannelTemplate" component={ChannelTemplateScreen} />
     </Root.Navigator>
