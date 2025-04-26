@@ -1,6 +1,7 @@
 import * as domain from '../domain';
 
-const MUSIC_ENDPOINT = 'https://api.ninaprotocol.com/v1';
+// const MUSIC_ENDPOINT = 'https://api.ninaprotocol.com/v1';
+const MUSIC_ENDPOINT = 'https://services.ninaprotocol.com/v1';
 
 interface MusicSearchResult {
   releases: MusicReleasePreview[];
