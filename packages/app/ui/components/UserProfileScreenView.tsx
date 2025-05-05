@@ -1,5 +1,6 @@
 import * as api from '@tloncorp/shared/api';
 import * as db from '@tloncorp/shared/db';
+import * as domain from '@tloncorp/shared/domain';
 import * as store from '@tloncorp/shared/store';
 import { useCopy } from '@tloncorp/ui';
 import { triggerHaptic } from '@tloncorp/ui';
@@ -26,8 +27,14 @@ import {
   useWindowDimensions,
 } from 'tamagui';
 
-import { useContact, useCurrentUserId, useNavigation } from '../contexts';
+import {
+  useAudioPlayer,
+  useContact,
+  useCurrentUserId,
+  useNavigation,
+} from '../contexts';
 import { useGroupTitle } from '../utils';
+import { MiniPlayableTrack } from './Audio/MiniPlayableTrack';
 import { ContactAvatar, GroupAvatar } from './Avatar';
 import { ContactName } from './ContactNameV2';
 import { useBoundHandler } from './ListItem/listItemUtils';
@@ -356,7 +363,7 @@ function GroupBlock({
   );
 }
 
-function UserInfoRow(props: { userId: string; hasNickname: boolean }) {
+export function UserInfoRow(props: { userId: string; hasNickname: boolean }) {
   const { didCopy, doCopy } = useCopy(props.userId);
 
   const handleCopy = useCallback(() => {

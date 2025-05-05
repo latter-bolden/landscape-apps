@@ -1,3 +1,4 @@
+// tamagui-ignore
 import { RawText } from '@tloncorp/ui';
 import React, { useMemo } from 'react';
 

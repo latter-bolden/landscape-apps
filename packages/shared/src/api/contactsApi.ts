@@ -1,5 +1,6 @@
 import * as db from '../db';
 import { createDevLogger } from '../debug';
+import * as domain from '../domain';
 import { AnalyticsEvent } from '../domain';
 import { normalizeUrbitColor } from '../logic';
 import * as ub from '../urbit';
@@ -438,16 +439,26 @@ export const v1PeerToClientProfile = (
   config?: {
     isContact?: boolean;
     isContactSuggestion?: boolean;
+    ignoreCurrentUser?: boolean;
   }
 ): db.Contact => {
-  const currentUserId = getCurrentUserId();
+  const currentUserId = config?.ignoreCurrentUser ? null : getCurrentUserId();
+  const tunes = parsePinnedTunes(contact);
+  const location = parseLocation(contact);
+  const links = parseLinks(contact);
+
   return {
     id,
     peerNickname: contact.nickname?.value ?? null,
     peerAvatarImage: contact.avatar?.value ?? null,
+    nickname: contact.nickname?.value ?? null,
+    avatarImage: contact.avatar?.value ?? null,
     bio: contact.bio?.value ?? null,
     status: contact.status?.value ?? null,
     color: contact.color ? normalizeUrbitColor(contact.color.value) : null,
+    tunes,
+    location,
+    links,
     coverImage: contact.cover?.value ?? null,
     pinnedGroups:
       contact.groups?.value.map((group) => ({
@@ -506,4 +517,46 @@ export const contactToClientProfile = (
     isContact: true,
     isContactSuggestion: false,
   };
+};
+
+export const parsePinnedTunes = (
+  contact: ub.ContactBookProfile
+): domain.NormalizedTrack[] => {
+  if (!contact || !contact.tunes) {
+    return [];
+  }
+
+  return contact.tunes.value.map(
+    (tune) => JSON.parse(tune.value) as domain.NormalizedTrack
+  );
+};
+
+export const parseLocation = (
+  contact: ub.ContactBookProfile
+): domain.ProfileLocation | null => {
+  if (!contact || !contact.location) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(contact.location.value);
+  } catch (e) {
+    return null;
+  }
+};
+
+export const parseLinks = (
+  contact: ub.ContactBookProfile
+): domain.ProfileLink[] | null => {
+  if (!contact || !contact.links) {
+    return null;
+  }
+
+  try {
+    return contact.links.value.map((link) =>
+      JSON.parse(link.value)
+    ) as domain.ProfileLink[];
+  } catch (e) {
+    return null;
+  }
 };

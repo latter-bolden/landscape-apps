@@ -173,6 +173,7 @@ const ActionSheetComponent = ({
             backgroundColor="$darkOverlay"
             key="overlay"
             opacity={0.5}
+            id="modal-overlay"
           />
           <Dialog.Content
             borderWidth={1}

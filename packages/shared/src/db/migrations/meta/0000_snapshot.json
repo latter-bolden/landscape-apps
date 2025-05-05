@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "97f9a452-c646-4eb9-9b82-84cbda9260f7",
+  "id": "51a51d33-13d8-493e-ac2c-48bbbd904987",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "activity_event_contact_group_pins": {
@@ -910,6 +910,65 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "contact_pinned_posts": {
+      "name": "contact_pinned_posts",
+      "columns": {
+        "contact_id": {
+          "name": "contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "contact_pinned_posts_contact_id_contacts_id_fk": {
+          "name": "contact_pinned_posts_contact_id_contacts_id_fk",
+          "tableFrom": "contact_pinned_posts",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "contact_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "contact_pinned_posts_post_id_posts_id_fk": {
+          "name": "contact_pinned_posts_post_id_posts_id_fk",
+          "tableFrom": "contact_pinned_posts",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "contact_pinned_posts_contact_id_post_id_pk": {
+          "columns": [
+            "contact_id",
+            "post_id"
+          ],
+          "name": "contact_pinned_posts_contact_id_post_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "contacts": {
       "name": "contacts",
       "columns": {
@@ -1021,6 +1080,27 @@
         },
         "systemContactId": {
           "name": "systemContactId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tunes": {
+          "name": "tunes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "location": {
+          "name": "location",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "links": {
+          "name": "links",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

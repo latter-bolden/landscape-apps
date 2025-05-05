@@ -1455,30 +1455,34 @@ const extractFlaggedPosts = (
 
 export function toClientGroups(
   groups: Record<string, ub.Group>,
-  isJoined: boolean
+  isJoined: boolean,
+  config?: {
+    ignoreCurrentUser?: boolean;
+  }
 ) {
   if (!groups) {
     return [];
   }
   return Object.entries(groups).map(([id, group]) => {
-    return toClientGroup(id, group, isJoined);
+    return toClientGroup(id, group, isJoined, config);
   });
 }
 
 export function toClientGroup(
   id: string,
   group: ub.Group,
-  isJoined: boolean
+  isJoined: boolean,
+  config?: {
+    ignoreCurrentUser?: boolean;
+  }
 ): db.Group {
-  const currentUserId = getCurrentUserId();
+  const currentUserId = !config?.ignoreCurrentUser ? getCurrentUserId() : null;
   const { host: hostUserId } = parseGroupId(id);
   const rolesById: Record<string, db.GroupRole> = {};
   const flaggedPosts: db.GroupFlaggedPosts[] = extractFlaggedPosts(
     id,
     group['flagged-content']
   );
-
-  logger.log('cordon', group.cordon);
 
   const bannedMembers: db.GroupMemberBan[] =
     'open' in group.cordon
@@ -1555,7 +1559,7 @@ export function toClientGroup(
     bannedMembers,
     joinRequests,
     channels: group.channels
-      ? toClientChannels({ channels: group.channels, groupId: id })
+      ? toClientChannels({ channels: group.channels, groupId: id, config })
       : [],
   };
 }
@@ -1649,12 +1653,16 @@ function toClientGroupTitle(title: string) {
 function toClientChannels({
   channels,
   groupId,
+  config,
 }: {
   channels: Record<string, ub.GroupChannel>;
   groupId: string;
+  config?: {
+    ignoreCurrentUser?: boolean;
+  };
 }): db.Channel[] {
   return Object.entries(channels).map(([id, channel]) =>
-    toClientChannel({ id, channel, groupId })
+    toClientChannel({ id, channel, groupId, config })
   );
 }
 
@@ -1662,10 +1670,14 @@ function toClientChannel({
   id,
   channel,
   groupId,
+  config,
 }: {
   id: string;
   channel: ub.GroupChannel;
   groupId: string;
+  config?: {
+    ignoreCurrentUser?: boolean;
+  };
 }): db.Channel {
   const { description, channelContentConfiguration } =
     StructuredChannelDescriptionPayload.decode(channel.meta.description);
@@ -1680,7 +1692,7 @@ function toClientChannel({
     roleId,
   }));
 
-  const currentUserId = getCurrentUserId();
+  const currentUserId = !config?.ignoreCurrentUser ? getCurrentUserId() : null;
   const { host: hostUserId } = parseGroupChannelId(id);
 
   return {

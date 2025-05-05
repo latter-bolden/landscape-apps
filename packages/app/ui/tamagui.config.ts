@@ -443,6 +443,7 @@ export const fonts = {
 export const media = createMedia({
   sm: { maxWidth: 768 },
   gtSm: { minWidth: 768 + 1 },
+  lg: { minWidth: 1200 },
 });
 
 const desktopRawMeasures = {

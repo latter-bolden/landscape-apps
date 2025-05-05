@@ -7,3 +7,6 @@ export * from './attestations';
 export * from './wayfinding';
 export * from './onboarding';
 export * from './systemContacts';
+export * from './audio';
+export * from './location';
+export * from './profile';

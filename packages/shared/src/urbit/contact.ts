@@ -82,6 +82,20 @@ export interface AttestationProviderUrl {
   type: 'text';
   value: string;
 }
+export interface ContactFieldTunes {
+  type: 'set';
+  value: { type: 'text'; value: string }[];
+}
+
+export interface ContactFieldLocation {
+  type: 'text';
+  value: string;
+}
+
+export interface ContactFieldLinks {
+  type: 'set';
+  value: { type: 'text'; value: string }[];
+}
 
 export interface ContactBookProfile {
   nickname?: ContactFieldText;
@@ -95,6 +109,9 @@ export interface ContactBookProfile {
   ['lanyard-phone-0-sign']?: AttestationSignature;
   ['lanyard-twitter-0-url']?: AttestationProviderUrl;
   ['lanyard-phone-0-url']?: AttestationProviderUrl;
+  tunes?: ContactFieldTunes;
+  location?: ContactFieldLocation;
+  links?: ContactFieldLinks;
 }
 
 export interface ContactBookProfileEdit {

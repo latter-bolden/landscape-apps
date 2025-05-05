@@ -128,10 +128,14 @@ export const contacts = sqliteTable('contacts', {
   isContact: boolean('isContact'),
   isContactSuggestion: boolean('isContactSuggestion'),
   systemContactId: text('systemContactId'),
+  tunes: text('tunes', { mode: 'json' }),
+  location: text('location', { mode: 'json' }),
+  links: text('links', { mode: 'json' }),
 });
 
 export const contactsRelations = relations(contacts, ({ one, many }) => ({
   pinnedGroups: many(contactGroups),
+  pinnedPosts: many(contactPinnedPosts),
   attestations: many(contactAttestations),
   systemContact: one(systemContacts, {
     fields: [contacts.systemContactId],
@@ -156,6 +160,23 @@ export const contactGroups = sqliteTable(
   }
 );
 
+export const contactPinnedPosts = sqliteTable(
+  'contact_pinned_posts',
+  {
+    contactId: text('contact_id')
+      .references(() => contacts.id, { onDelete: 'cascade' })
+      .notNull(),
+    postId: text('post_id')
+      .references(() => posts.id)
+      .notNull(),
+  },
+  (table) => {
+    return {
+      pk: primaryKey({ columns: [table.contactId, table.postId] }),
+    };
+  }
+);
+
 export const contactGroupRelations = relations(contactGroups, ({ one }) => ({
   contact: one(contacts, {
     fields: [contactGroups.contactId],
@@ -166,6 +187,20 @@ export const contactGroupRelations = relations(contactGroups, ({ one }) => ({
     references: [groups.id],
   }),
 }));
+
+export const contactPinnedPostRelations = relations(
+  contactPinnedPosts,
+  ({ one }) => ({
+    contact: one(contacts, {
+      fields: [contactPinnedPosts.contactId],
+      references: [contacts.id],
+    }),
+    post: one(posts, {
+      fields: [contactPinnedPosts.postId],
+      references: [posts.id],
+    }),
+  })
+);
 
 export const contactAttestations = sqliteTable(
   'contact_attestations',
@@ -920,7 +955,11 @@ export const channelRelations = relations(channels, ({ one, many }) => ({
   }),
 }));
 
-export type PostDeliveryStatus = 'pending' | 'sent' | 'failed' | 'needs_verification';
+export type PostDeliveryStatus =
+  | 'pending'
+  | 'sent'
+  | 'failed'
+  | 'needs_verification';
 
 export const posts = sqliteTable(
   'posts',
