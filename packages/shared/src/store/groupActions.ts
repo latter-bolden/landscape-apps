@@ -4,13 +4,15 @@ import * as api from '../api';
 import * as db from '../db';
 import { GroupPrivacy } from '../db/schema';
 import { createDevLogger } from '../debug';
-import { AnalyticsEvent } from '../domain';
+import { AnalyticsEvent, FeatureTag, LayerTag, LoggerCtx } from '../domain';
 import * as logic from '../logic';
 import { getRandomId } from '../logic';
 import { createSectionId } from '../urbit';
 import { pinGroup } from './channelActions';
 
-const logger = createDevLogger('groupActions', false);
+const logger = createDevLogger('groupActions', false, {
+  layerTag: LayerTag.action,
+});
 
 interface CreateGroupParams {
   title?: string;
@@ -23,10 +25,17 @@ export async function scaffoldPersonalGroup() {
   const PersonalGroupKeys = logic.getPersonalGroupKeys(currentUserId);
   const groupIconUrl = logic.getRandomDefaultPersonalGroupIcon();
 
-  logger.trackEvent('Personal Group Scaffold', {
-    context: 'starting personal group scaffold',
-    method: 'thread creation',
-  });
+  // logger.trackEvent('Personal Group Scaffold', {
+  //   context: 'starting personal group scaffold',
+  //   method: 'thread creation',
+  // });
+
+  const ctx: LoggerCtx = {
+    opId: crypto.randomUUID(),
+    featureTag: FeatureTag.Wayfinding,
+  };
+
+  logger.trackEvent('starting personal group creation', { ctx });
 
   try {
     const personalGroup: db.Group = {
@@ -62,7 +71,7 @@ export async function scaffoldPersonalGroup() {
 
     personalGroup.channels = [chatChannel, collectionChannel, notebookChannel];
 
-    const createdGroup = await createGroup({ group: personalGroup });
+    const createdGroup = await createGroup({ group: personalGroup, ctx });
 
     // Final consistency check
     const createdChat = createdGroup.channels?.find(
@@ -80,32 +89,33 @@ export async function scaffoldPersonalGroup() {
       !createdCollection ||
       !createdNotebook
     ) {
-      logger.trackEvent('Personal Group Scaffold', {
-        notes: 'Completed scaffold, but not all items are present',
+      throw logger.trackError('failed personal group consistency check', {
+        ctx,
+        description:
+          'After running the create operation, we check to make sure all expected channels are present',
         hasGroup: !!createdGroup,
         hasChatChannel: !!createdChat,
         hasCollectionChannel: !!createdCollection,
         hasNotesChannel: !!createdNotebook,
       });
-      throw new Error('Something went wrong');
     } else {
-      logger.trackEvent('Personal Group Scaffold', {
-        note: 'Passed final consistency check',
+      logger.trackDebug('passed personal group consistency check', {
+        ctx,
       });
     }
 
     // attempt to pin it
     pinGroup(createdGroup);
 
-    logger.trackEvent('Completed Personal Group Scaffold', {
-      ...logic.getModelAnalytics({ group: { id: PersonalGroupKeys.groupId } }),
+    logger.trackEvent('completed personal group creation', {
+      ctx,
     });
   } catch (e) {
-    logger.trackEvent('Error Personal Group Scaffold', {
-      errorMessage: e.message,
-      stack: e.stack,
+    throw logger.trackError('failed to create personal group', {
+      userMessage: 'Something went wrong',
+      ctx,
+      e,
     });
-    throw new Error('Something went wrong');
   }
 }
 
@@ -145,6 +155,7 @@ export async function createDefaultGroup(
 export async function createGroup(params: {
   group: db.Group;
   memberIds?: string[];
+  ctx?: LoggerCtx;
 }): Promise<db.Group> {
   const placeHolderTitle = await getPlaceholderTitle(params);
 
@@ -163,9 +174,10 @@ export async function createGroup(params: {
     // insert the real one
     await db.insertGroups({ groups: [resultGroup] });
 
-    logger.trackEvent(AnalyticsEvent.ActionCreateGroup, {
+    logger.trackEvent('created group', {
       ...logic.getModelAnalytics({ group: params.group }),
       initialMemberCount: params.memberIds?.length ?? 0,
+      ctx: params.ctx,
     });
 
     return resultGroup;
@@ -173,12 +185,11 @@ export async function createGroup(params: {
     // rollback optimistic update
     await db.deleteGroup(params.group.id);
 
-    console.error(`${params.group.id}: failed to create group`, e);
-    logger.trackEvent(AnalyticsEvent.ErrorCreateGroup, {
-      errorMessage: e.message,
-      stack: e.stack,
+    throw logger.trackError('failed to create group', {
+      e,
+      userMessage: 'Something went wrong',
+      ctx: params.ctx,
     });
-    throw new Error('Something went wrong');
   }
 }
 

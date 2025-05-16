@@ -2,7 +2,7 @@ import { Noun } from '@urbit/nockjs';
 import _ from 'lodash';
 
 import { createDevLogger, escapeLog, runIfDev } from '../debug';
-import { AnalyticsEvent, getConstants } from '../domain';
+import { AnalyticsEvent, LayerTag, LoggerCtx, getConstants } from '../domain';
 import * as Hosting from '../domain/hosting';
 import {
   AuthError,
@@ -15,7 +15,7 @@ import {
 import { preSig } from '../urbit';
 import { getLandscapeAuthCookie } from './landscapeApi';
 
-const logger = createDevLogger('urbit', false);
+const logger = createDevLogger('urbit', false, { layerTag: LayerTag.httpApi });
 
 const DEFAULT_SCRY_TIMEOUT = 60 * 1000; // 1 minute
 const DEFAULT_THREAD_TIMEOUT = 90 * 1000; // 90 seconds
@@ -644,7 +644,10 @@ export async function scryNoun({
   }
 }
 
-export async function thread<T, R = any>(params: Thread<T>): Promise<R> {
+export async function thread<T, R = any>(
+  params: Thread<T>,
+  ctx?: LoggerCtx
+): Promise<R> {
   if (!params.desk) {
     throw new Error('Must supply desk to run thread from');
   }
@@ -654,6 +657,7 @@ export async function thread<T, R = any>(params: Thread<T>): Promise<R> {
   }
 
   const trackDuration = createDurationTracker(AnalyticsEvent.Thread, {
+    ...ctx,
     desk: params.desk,
     inputMark: params.inputMark,
     threadName: params.threadName,

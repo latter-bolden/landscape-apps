@@ -167,3 +167,84 @@ export enum AnalyticsSeverity {
   Medium = 'Medium',
   Low = 'Low',
 }
+
+export class LoggerError extends Error {
+  public originatingLayer?: LayerTag;
+
+  constructor(params: { layerTag?: LayerTag; message?: string }) {
+    super(params.message || 'Logger Error');
+    this.name = 'LoggerError';
+    this.originatingLayer = params.layerTag;
+  }
+}
+
+export interface LoggerCtx {
+  opId?: string;
+  featureTag?: FeatureTag;
+}
+
+interface TrackedEventInfo {
+  userMessage?: string;
+  description?: string;
+
+  loggerName?: string;
+  featureTag?: FeatureTag;
+  layerTag?: LayerTag;
+  opId?: string; // unique identifier to correlate an operation across multiple events
+
+  requestStatus?: number;
+  duration?: number; // duration in milliseconds
+
+  error?: Error | string;
+  errorMessage?: string;
+  errorStack?: string;
+  errorCode?: number | string;
+
+  ctx?: LoggerCtx;
+}
+
+export interface TrackedEvent extends TrackedEventInfo {
+  eventUuid: string;
+  logLevel: LogLevel;
+  logSource: LogSource;
+  eventName: string;
+}
+
+export type LoggerProps = TrackedEventInfo & Record<string, unknown>;
+
+export enum LogLevel {
+  Error = 'error',
+  Warn = 'warn',
+  Debug = 'debug',
+  Info = 'info',
+}
+
+export enum LogSource {
+  Urbit = 'urbit',
+  TMMobile = 'tm-mobile',
+  TMWeb = 'tm-web',
+  TMDesktop = 'tm-desktop',
+  TlonHosting = 'tlon-hosting',
+}
+
+export enum FeatureTag {
+  GroupCreation = 'Group Creation',
+  Invite = 'Invite',
+  Attestation = 'Attestation',
+  Wayfinding = 'Wayfinding',
+  ChannelAction = 'Channel Action',
+  GroupAction = 'Group Action',
+  PostAction = 'Post Action',
+  Scry = 'Scry',
+  Poke = 'Poke',
+}
+
+export enum LayerTag {
+  db = 'db',
+  httpApi = 'httpApi',
+  api = 'api',
+  logic = 'logic',
+  action = 'action',
+  store = 'store',
+  ui = 'ui',
+}

@@ -3,7 +3,14 @@ import { Poke } from '@urbit/http-api';
 import * as db from '../db';
 import { GroupPrivacy } from '../db/schema';
 import { createDevLogger } from '../debug';
-import { AnalyticsEvent, AnalyticsSeverity } from '../domain';
+import {
+  AnalyticsEvent,
+  AnalyticsSeverity,
+  FeatureTag,
+  LayerTag,
+  LoggerCtx,
+} from '../domain';
+import { getModelAnalytics } from '../logic';
 import type * as ub from '../urbit';
 import {
   FlaggedContent,
@@ -26,7 +33,7 @@ import {
   trackedPoke,
 } from './urbit';
 
-const logger = createDevLogger('groupsApi', false);
+const logger = createDevLogger('groupsApi', false, { layerTag: LayerTag.api });
 
 function groupAction(flag: string, diff: ub.GroupDiff): Poke<ub.GroupAction> {
   return {
@@ -374,10 +381,12 @@ export const createGroup = async ({
   group,
   placeHolderTitle,
   memberIds,
+  ctx,
 }: {
   group: db.Group;
   memberIds?: string[];
   placeHolderTitle?: string;
+  ctx?: LoggerCtx;
 }): Promise<db.Group> => {
   const payload: ub.GroupCreateThreadInput = {
     groupId: group.id,
@@ -409,28 +418,22 @@ export const createGroup = async ({
       outputMark: 'group-ui-1',
       body: payload,
     });
-    logger.trackEvent(AnalyticsEvent.DebugGroupCreate, {
-      context: 'group-create-thread request succeeded',
-    });
+    const resultGroup = toClientGroup(group.id, result, true);
 
-    return toClientGroup(group.id, result, true);
+    logger.trackDebug('Received thread result', {
+      group: getModelAnalytics({ group }),
+      ctx,
+    });
+    return resultGroup;
   } catch (err) {
     if (err instanceof BadResponseError) {
-      logger.trackEvent('Create Group Error', {
-        severity: AnalyticsSeverity.Critical,
-        status: err.status,
-        error: err.toString(),
-        context: 'group-create-thread request failed',
-      });
-    } else {
-      logger.trackEvent('Create Group Error', {
-        severity: AnalyticsSeverity.Critical,
-        errorMessage: err.message,
-        errorStack: err.stack,
-        context: 'group-create-thread unexpected error',
+      throw logger.trackError('bad create group thread request', {
+        requestStatus: err.status,
+        err,
+        ctx,
       });
     }
-    throw err;
+    throw logger.trackError('create group thread failed', { err, ctx });
   }
 };
 

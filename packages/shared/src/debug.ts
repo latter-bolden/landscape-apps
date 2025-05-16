@@ -1,17 +1,22 @@
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import create from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { getStorageMethods } from './db/getStorageMethods';
+import * as domain from './domain';
 import { useLiveRef } from './logic/utilHooks';
 import { useCurrentSession } from './store/session';
 
 const MAX_POSTHOG_EVENT_SIZE = 1_000_000;
 const BREADCRUMB_LIMIT = 100;
 
+const logSource =
+  Platform.OS === 'web' ? domain.LogSource.TMWeb : domain.LogSource.TMMobile;
+
 interface Breadcrumb {
-  tag: string;
+  loggerName: string;
   message?: string | null;
   sensitive?: string | null;
 }
@@ -40,8 +45,20 @@ interface Log {
 export type Logger = Console & {
   crumb: (...args: unknown[]) => void;
   sensitiveCrumb: (...args: unknown[]) => void;
-  trackError: (message: string, data?: Record<string, any>) => void;
-  trackEvent: (eventId: string, data?: Record<string, any>) => void;
+  // trackError: (message: string, data?: Record<string, any>) => void;
+  trackError(
+    eventNameOrProps: string | Error | domain.LoggerProps,
+    props?: Error | domain.LoggerProps
+  ): domain.LoggerError;
+  // trackEvent: (eventId: string, data?: Record<string, any>) => void;
+  trackEvent(
+    eventNameOrProps: string | domain.LoggerProps,
+    props?: domain.LoggerProps
+  ): void;
+  trackDebug(
+    eventNameOrProps: string | domain.LoggerProps,
+    props?: domain.LoggerProps
+  ): void;
 };
 
 interface ErrorLoggerStub {
@@ -161,7 +178,7 @@ export const useDebugStore = create<DebugStore>(
         const { debugBreadcrumbs } = get();
         const includeSensitiveContext = true; // TODO: handle accordingly
         return debugBreadcrumbs.map((crumb) => {
-          return `[${crumb.tag}] ${crumb.message ?? ''}${includeSensitiveContext && crumb.sensitive ? crumb.sensitive : ''}`;
+          return `[${crumb.loggerName}] ${crumb.message ?? ''}${includeSensitiveContext && crumb.sensitive ? crumb.sensitive : ''}`;
         });
       },
       addCustomEnabledLoggers: (loggers) => {
@@ -213,7 +230,12 @@ async function getDebugInfo() {
   };
 }
 
-export function createDevLogger(tag: string, enabled: boolean) {
+export function createDevLogger(
+  loggerName: string,
+  enabled: boolean,
+  config?: { layerTag?: domain.LayerTag; featureTag?: domain.FeatureTag }
+) {
+  const { layerTag, featureTag } = config || {};
   const isElectron =
     typeof window !== 'undefined' &&
     window.navigator &&
@@ -225,14 +247,13 @@ export function createDevLogger(tag: string, enabled: boolean) {
         let resolvedProp = prop;
         const {
           enabled: debugEnabled,
-          errorLogger,
           customLoggers,
           addBreadcrumb,
         } = useDebugStore.getState();
 
         if (prop === 'crumb') {
           addBreadcrumb({
-            tag,
+            loggerName,
             message: args.length > 0 ? args.join(' ') : null,
           });
           resolvedProp = 'log';
@@ -240,7 +261,7 @@ export function createDevLogger(tag: string, enabled: boolean) {
 
         if (prop === 'sensitiveCrumb') {
           addBreadcrumb({
-            tag,
+            loggerName,
             sensitive: args.length > 0 ? args.join(' ') : null,
           });
           resolvedProp = 'log';
@@ -249,53 +270,47 @@ export function createDevLogger(tag: string, enabled: boolean) {
         if (prop === 'error') {
           // TODO: feel like it might be revealing too much to always log the message?
           addBreadcrumb({
-            tag,
+            loggerName,
             message: 'error logged',
           });
         }
 
         if (prop === 'trackError') {
-          const customProps =
-            args[1] && typeof args[1] === 'object' ? args[1] : {};
-          const report = (debugInfo: any = undefined) =>
-            errorLogger?.capture('app_error', {
-              debugInfo,
-              message:
-                typeof args[0] === 'string'
-                  ? `[${tag}] ${args[0]}`
-                  : 'no message',
-              breadcrumbs: useDebugStore.getState().getBreadcrumbs(),
-              errorMessage:
-                customProps instanceof Error ? customProps.message : undefined,
-              errorStack:
-                customProps instanceof Error ? customProps.stack : undefined,
-              logLevel: 'error',
-              ...customProps,
-            });
-          getDebugInfo()
-            .then(report)
-            .catch(() => report());
-          resolvedProp = 'error';
+          const inputProperties = normalizeLoggerArgs(args);
+          const properties: domain.LoggerProps = {
+            loggerName,
+            layerTag,
+            featureTag,
+            ...inputProperties,
+            logSource,
+            logLevel: domain.LogLevel.Error,
+          };
+          const loggerError = trackErrorInternal(properties);
+          if (enabled) {
+            console.error(loggerError);
+          }
+          return loggerError;
         }
 
         if (prop == 'trackEvent') {
-          if (args[0] && typeof args[0] === 'string') {
-            const customProps =
-              args[1] && typeof args[1] === 'object' ? args[1] : {};
-            errorLogger?.capture(args[0], {
-              ...customProps,
-              message: `[${tag}] ${args[0]}`,
-              logger: tag,
-            });
-          }
+          const inputProperties = normalizeLoggerArgs(args);
+          const properties: domain.LoggerProps = {
+            loggerName,
+            layerTag,
+            featureTag,
+            ...inputProperties,
+            logSource,
+            logLevel: domain.LogLevel.Info,
+          };
+          trackEventInternal(properties);
           resolvedProp = 'log';
         }
 
-        if (!(debugEnabled || enabled || customLoggers.has(tag))) {
+        if (!(debugEnabled || enabled || customLoggers.has(loggerName))) {
           return;
         }
 
-        const prefix = `${[sessionTimeLabel(), deltaLabel()].filter((v) => !!v).join(':')} [${tag}]`;
+        const prefix = `${[sessionTimeLabel(), deltaLabel()].filter((v) => !!v).join(':')} [${loggerName}]`;
         if (debugEnabled) {
           useDebugStore.getState().appendLog({
             timestamp: Date.now(),
@@ -312,6 +327,78 @@ export function createDevLogger(tag: string, enabled: boolean) {
   });
 
   return proxy as Logger;
+}
+
+function normalizeLoggerArgs(
+  args: unknown[]
+): { eventName: string; eventUuid: string } & Partial<domain.LoggerProps> {
+  const input1 = args[0];
+  const input2 = args[1];
+
+  const eventUuid = crypto.randomUUID();
+  let eventName = 'Unknown';
+  let properties: Partial<domain.LoggerProps> = {};
+
+  // prioritize capturing errors if that's all that's passed in, otherwise if
+  // object assume it's the logger props
+  if (input1 && typeof input1 === 'object') {
+    properties = input1 instanceof Error ? { error: input1 } : input1;
+  }
+
+  // otherwise, use default (message, properties) signature
+  if (typeof input1 === 'string') {
+    eventName = input1;
+    if (input2 && typeof input2 === 'object') {
+      properties = input2 instanceof Error ? { error: input2 } : input2;
+    }
+  }
+
+  // flatten error info
+  const resolvedError = properties.error || properties.err || properties.e;
+  const errorProps: Partial<domain.LoggerProps> = {};
+  if (resolvedError instanceof Error) {
+    errorProps.errorMessage = resolvedError.message;
+    errorProps.errorStack = resolvedError.stack;
+    errorProps.errorString = resolvedError.toString();
+    errorProps.error = resolvedError;
+  } else if (resolvedError) {
+    errorProps.errorString = resolvedError.toString();
+  }
+
+  // flatten logger context
+  const ctx = properties.ctx || {};
+
+  return {
+    eventUuid,
+    ...ctx,
+    ...errorProps,
+    ...properties,
+    eventName,
+    testProp: ['a', 'b', 'c'],
+  };
+}
+
+function formatEventName(input: domain.LoggerProps) {
+  return `${input.logLevel}: ${input.eventName || input.layerTag}`;
+}
+
+function trackErrorInternal(
+  properties: domain.LoggerProps
+): domain.LoggerError {
+  const { errorLogger } = useDebugStore.getState();
+  if (errorLogger) {
+    const eventName = formatEventName(properties);
+    errorLogger.capture(eventName, properties);
+  }
+  return new domain.LoggerError({ layerTag: properties.layerTag });
+}
+
+function trackEventInternal(properties: domain.LoggerProps): void {
+  const { errorLogger } = useDebugStore.getState();
+  if (errorLogger) {
+    const eventName = formatEventName(properties);
+    errorLogger.capture(eventName, properties);
+  }
 }
 
 export async function logDuration<T>(
